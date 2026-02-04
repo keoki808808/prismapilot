@@ -10,6 +10,17 @@ A generic, schema-agnostic query builder for Prisma. It provides pagination, sea
 - Optional Zod validation schemas
 - Advanced utilities in a separate module
 
+## Feature Matrix
+| Feature Area | Available Items | Real-World Use Cases |
+| --- | --- | --- |
+| Core builders | `queryBuilder`, `cursorQueryBuilder`, `advancedQueryBuilder`, `countQuery`, `aggregateQuery` | Listing pages, infinite scroll, dashboards, reporting |
+| Pagination | `getPagination`, `getCursorPagination`, `calculateTotalPages`, `processCursorResults` | API pagination, mobile feeds, admin tables |
+| Search | `buildSearchQuery`, `buildNestedSearchQuery`, `buildExactSearch`, `buildPrefixSearch` | User search, order lookup, quick search bars |
+| Filters | `buildFilters`, `buildDateRangeFilter`, `buildNumberRangeFilter`, `buildRelationFilters`, `buildNotFilters`, `combineFilters`, `combineFiltersWithOr` | Status filters, date ranges, price ranges, exclusions |
+| Filter types | Exact, Array (IN), Date range, Number range, Boolean, Enum | Role filters, date windows, amount bands |
+| Validation | `paginationSchema`, `cursorPaginationSchema`, `sortSchema`, `searchSchema`, `dateRangeSchema`, `numberRangeSchema`, `genericQuerySchema` | Validate query params for REST/GraphQL |
+| Advanced module | `cachedQueryBuilder`, `monitoredQueryBuilder`, `softDeleteQueryBuilder`, `tenantQueryBuilder`, `batchQueryBuilder`, `queryWithWebhook`, `groupByQuery` | Caching, performance monitoring, soft deletes, multi-tenant apps, exports, webhook workflows |
+
 ## Installation
 
 ### NPM
@@ -419,6 +430,236 @@ const input = paginationSchema.merge(sortSchema).parse({
   sortBy: "createdAt",
   sortOrder: "desc",
 });
+```
+
+## Real-World Examples
+
+### Search Users
+```ts
+const users = await queryBuilder({
+  model: prisma.user,
+  page: 1,
+  limit: 20,
+  search: "john@example.com",
+  searchFields: ["email", "username", "firstName", "lastName"],
+  filters: {
+    isActive: true,
+    role: "USER",
+  },
+});
+```
+Sample response:
+```json
+{
+  "data": [
+    {
+      "id": "u_1",
+      "email": "john@example.com",
+      "username": "john",
+      "firstName": "John",
+      "lastName": "Doe",
+      "role": "USER",
+      "isActive": true
+    }
+  ],
+  "meta": { "total": 1, "page": 1, "limit": 20, "totalPages": 1 }
+}
+```
+
+### Get Upcoming Events
+```ts
+const events = await queryBuilder({
+  model: prisma.event,
+  page: 1,
+  limit: 10,
+  filters: {
+    status: "UPCOMING",
+    mode: "ONLINE",
+  },
+  sortBy: "startsAt",
+  sortOrder: "asc",
+  include: {
+    speakers: true,
+    hostedUrl: true,
+  },
+});
+```
+Sample response:
+```json
+{
+  "data": [
+    {
+      "id": "ev_1",
+      "title": "NextJS Meetup",
+      "status": "UPCOMING",
+      "mode": "ONLINE",
+      "startsAt": "2025-03-10T10:00:00.000Z",
+      "speakers": [],
+      "hostedUrl": true
+    }
+  ],
+  "meta": { "total": 1, "page": 1, "limit": 10, "totalPages": 1 }
+}
+```
+
+### Orders by Date Range
+```ts
+const orders = await queryBuilder({
+  model: prisma.order,
+  page: 1,
+  limit: 50,
+  filters: {
+    status: "PAID",
+    createdAt: {
+      from: new Date("2025-01-01"),
+      to: new Date("2025-12-31"),
+    },
+    amount: {
+      from: 10000,  // 100 INR in paise
+      to: 100000,   // 1000 INR in paise
+    },
+  },
+});
+```
+Sample response:
+```json
+{
+  "data": [
+    {
+      "id": "ord_1",
+      "status": "PAID",
+      "amount": 45000,
+      "createdAt": "2025-02-12T08:30:00.000Z"
+    }
+  ],
+  "meta": { "total": 1, "page": 1, "limit": 50, "totalPages": 1 }
+}
+```
+
+### Infinite Scroll with Cursor Pagination
+```ts
+const events = await cursorQueryBuilder({
+  model: prisma.event,
+  cursor: lastItemId,  // From previous response
+  limit: 10,
+  filters: {
+    status: "LIVE",
+  },
+  include: {
+    speakers: true,
+  },
+});
+
+// Next page
+if (events.meta.hasMore) {
+  const nextPage = await cursorQueryBuilder({
+    model: prisma.event,
+    cursor: events.meta.nextCursor,
+    limit: 10,
+  });
+}
+```
+Sample response:
+```json
+{
+  "data": [
+    { "id": "ev_10", "title": "Live Webinar", "status": "LIVE", "speakers": [] }
+  ],
+  "meta": { "nextCursor": "ev_10", "hasMore": true, "limit": 10 }
+}
+```
+
+### Search Payments
+```ts
+const payments = await queryBuilder({
+  model: prisma.payment,
+  page: 1,
+  limit: 20,
+  search: "razorpay_123",
+  searchFields: ["paymentGatewayPaymentId", "paymentGatewayOrderId"],
+  filters: {
+    status: "SUCCESS",
+  },
+  include: {
+    user: {
+      select: {
+        email: true,
+        firstName: true,
+        lastName: true,
+      },
+    },
+    order: true,
+  },
+});
+```
+Sample response:
+```json
+{
+  "data": [
+    {
+      "id": "pay_1",
+      "status": "SUCCESS",
+      "paymentGatewayPaymentId": "razorpay_123",
+      "user": { "email": "john@example.com", "firstName": "John", "lastName": "Doe" },
+      "order": { "id": "ord_1" }
+    }
+  ],
+  "meta": { "total": 1, "page": 1, "limit": 20, "totalPages": 1 }
+}
+```
+
+### Dashboard Statistics
+```ts
+const stats = await Promise.all([
+  countQuery({ model: prisma.user, filters: { isActive: true } }),
+  countQuery({ model: prisma.event, filters: { status: "LIVE" } }),
+  countQuery({ model: prisma.order, filters: { status: "PAID" } }),
+  countQuery({ model: prisma.refundRequest, filters: { status: "PENDING" } }),
+]);
+
+const [activeUsers, liveEvents, paidOrders, pendingRefunds] = stats;
+```
+Sample response:
+```json
+{
+  "activeUsers": 120,
+  "liveEvents": 3,
+  "paidOrders": 56,
+  "pendingRefunds": 4
+}
+```
+
+### Revenue Aggregation
+```ts
+const revenue = await aggregateQuery({
+  model: prisma.order,
+  filters: {
+    status: "PAID",
+    createdAt: {
+      from: new Date("2025-01-01"),
+      to: new Date("2025-12-31"),
+    },
+  },
+  aggregations: {
+    _count: true,
+    _sum: { amount: true },
+    _avg: { amount: true },
+  },
+});
+
+console.log({
+  totalOrders: revenue._count,
+  totalRevenue: revenue._sum.amount,
+  averageOrderValue: revenue._avg.amount,
+});
+```
+Sample response:
+```json
+{
+  "totalOrders": 150,
+  "totalRevenue": 7250000,
+  "averageOrderValue": 48333.33
+}
 ```
 
 ## Domain-Specific Examples
