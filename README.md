@@ -21,6 +21,11 @@ A generic, schema-agnostic query builder for Prisma. It provides pagination, sea
 | Validation | `paginationSchema`, `cursorPaginationSchema`, `sortSchema`, `searchSchema`, `dateRangeSchema`, `numberRangeSchema`, `genericQuerySchema` | Validate query params for REST/GraphQL |
 | Advanced module | `cachedQueryBuilder`, `monitoredQueryBuilder`, `softDeleteQueryBuilder`, `tenantQueryBuilder`, `batchQueryBuilder`, `queryWithWebhook`, `groupByQuery` | Caching, performance monitoring, soft deletes, multi-tenant apps, exports, webhook workflows |
 
+## Assumptions / Notes
+- `queryBuilder` default sort uses `createdAt` unless you pass a different `sortBy`.
+- `cursorQueryBuilder` expects an `id` field for cursor pagination.
+- Search helpers use `mode: "insensitive"`, which depends on your Prisma provider support.
+
 ## Installation
 
 ### NPM
@@ -659,6 +664,141 @@ Sample response:
   "totalOrders": 150,
   "totalRevenue": 7250000,
   "averageOrderValue": 48333.33
+}
+```
+
+## Next.js API Routes
+
+### Example: `GET /api/users`
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import { queryBuilder } from "@websyro/prismapilot";
+import { prisma } from "@/lib/prisma.client";
+import { userQuerySchema } from "@/lib/validation";
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+
+    const params = {
+      page: searchParams.get("page") || "1",
+      limit: searchParams.get("limit") || "10",
+      search: searchParams.get("search") || undefined,
+      role: searchParams.get("role") || undefined,
+      isActive: searchParams.get("isActive") || undefined,
+    };
+
+    const validated = userQuerySchema.parse(params);
+
+    const result = await queryBuilder({
+      model: prisma.user,
+      page: validated.page,
+      limit: validated.limit,
+      search: validated.search,
+      searchFields: ["email", "username", "firstName", "lastName"],
+      filters: {
+        role: validated.role,
+        isActive: validated.isActive,
+      },
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    return NextResponse.json(
+      { error: "Invalid query parameters" },
+      { status: 400 },
+    );
+  }
+}
+```
+
+### Example Usage
+```
+GET /api/users?page=1&limit=20&search=john&role=USER&isActive=true
+```
+
+### Next.js + Clerk (Admin Only)
+```ts
+import { NextRequest, NextResponse } from "next/server";
+import { queryBuilder } from "@websyro/prismapilot";
+import { prisma } from "@/lib/prisma.client";
+import { auth } from "@clerk/nextjs/server";
+import { UserRole } from "@prisma/client";
+import { z } from "zod";
+
+const userQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(10),
+  search: z.string().optional(),
+  sortBy: z.string().default("createdAt"),
+  sortOrder: z.enum(["asc", "desc"]).default("desc"),
+  role: z.string().optional(),
+  isActive: z.coerce.boolean().optional(),
+});
+
+export async function GET(request: NextRequest) {
+  try {
+    const { userId, sessionClaims } = await auth();
+
+    if (!userId) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+    }
+
+    if ((sessionClaims?.role as UserRole) !== UserRole.ADMIN) {
+      return NextResponse.json(
+        { success: false, error: `${sessionClaims?.role} is not allowed` },
+        { status: 403 },
+      );
+    }
+
+    const searchParams = request.nextUrl.searchParams;
+    const params = {
+      page: searchParams.get("page") || "1",
+      limit: searchParams.get("limit") || "10",
+      search: searchParams.get("search") || undefined,
+      sortBy: searchParams.get("sortBy") || "createdAt",
+      sortOrder: searchParams.get("sortOrder") || "desc",
+      role: searchParams.get("role") || undefined,
+      isActive: searchParams.get("isActive") || undefined,
+    };
+
+    const validated = userQuerySchema.parse(params);
+
+    const result = await queryBuilder({
+      model: prisma.user,
+      page: validated.page,
+      limit: validated.limit,
+      search: validated.search,
+      searchFields: ["email", "username", "firstName", "lastName"],
+      filters: {
+        role: validated.role,
+        isActive: validated.isActive,
+      },
+      sortBy: validated.sortBy,
+      sortOrder: validated.sortOrder,
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        username: true,
+        role: true,
+        isActive: true,
+        imageUrl: true,
+        createdAt: true,
+      },
+    });
+
+    return NextResponse.json(
+      { data: result, success: true, metadata: sessionClaims?.metadata },
+      { status: 200 },
+    );
+  } catch (error) {
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }
 ```
 
