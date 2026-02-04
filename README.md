@@ -166,6 +166,103 @@ filters: {
 
 ## Examples
 
+### Basic Usage
+```ts
+import { queryBuilder } from "@websyro/prismapilot";
+import { prisma } from "./lib/prisma";
+
+// Simple query
+const users = await queryBuilder({
+  model: prisma.user,
+  page: 1,
+  limit: 20,
+  search: "john",
+  searchFields: ["email", "username", "firstName"],
+  filters: {
+    isActive: true,
+    role: ["ADMIN", "USER"],
+  },
+  sortBy: "createdAt",
+  sortOrder: "desc",
+});
+```
+
+## API Reference
+
+### queryBuilder - Offset-based Pagination
+```ts
+const result = await queryBuilder({
+  model: prisma.user,           // Required: Prisma model
+  page: 1,                      // Optional: Page number (default: 1)
+  limit: 10,                    // Optional: Items per page (default: 10, max: 100)
+  search: "search term",        // Optional: Search string
+  searchFields: ["field1"],     // Optional: Fields to search in
+  filters: {},                  // Optional: Filter conditions
+  sortBy: "createdAt",          // Optional: Field to sort by
+  sortOrder: "desc",            // Optional: asc or desc
+  include: {},                  // Optional: Prisma include
+  select: {},                   // Optional: Prisma select
+});
+```
+Returns:
+```ts
+{
+  data: T[],
+  meta: {
+    total: number,
+    page: number,
+    limit: number,
+    totalPages: number,
+  },
+}
+```
+
+### cursorQueryBuilder - Cursor-based Pagination
+```ts
+const result = await cursorQueryBuilder({
+  model: prisma.event,
+  cursor: "last-item-id",       // Optional: Cursor for next page
+  limit: 10,
+  // ... same options as queryBuilder (except 'page')
+});
+```
+Returns:
+```ts
+{
+  data: T[],
+  meta: {
+    nextCursor: string | null,
+    hasMore: boolean,
+    limit: number,
+  },
+}
+```
+
+### countQuery - Count Records
+```ts
+const count = await countQuery({
+  model: prisma.order,
+  filters: { status: "PAID" },
+  search: "search term",
+  searchFields: ["receipt"],
+});
+```
+
+### aggregateQuery - Aggregations
+```ts
+const stats = await aggregateQuery({
+  model: prisma.order,
+  filters: { status: "PAID" },
+  aggregations: {
+    _sum: { amount: true },
+    _avg: { amount: true },
+    _min: { amount: true },
+    _max: { amount: true },
+    _count: true,
+  },
+});
+```
+
 ### Search and Filters
 ```ts
 import { queryBuilder } from "@websyro/prismapilot";
@@ -202,6 +299,114 @@ const users = await cachedQueryBuilder(
   { model: prisma.user, page: 1 },
   { key: "users-page-1", ttl: 300000 }
 );
+```
+
+## Advanced Module Docs
+Import from `@websyro/prismapilot/advanced`. These utilities are generic, but some require specific fields in your schema.
+
+### What To Use When
+| Use case | Functions |
+| --- | --- |
+| Use caching | `cachedQueryBuilder`, `setCacheStore`, `generateCacheKey` |
+| Measure performance | `monitoredQueryBuilder`, `onQueryMetrics` |
+| Soft delete (requires `deletedAt` or custom field) | `buildSoftDeleteFilter`, `softDeleteQueryBuilder` |
+| Multi-tenant filters (requires `tenantId` or custom field) | `buildTenantFilter`, `tenantQueryBuilder` |
+| Batch queries | `batchQueryBuilder` |
+| Export data | `toCSV`, `toJSON`, `queryAndExportCSV`, `queryAndExportJSON` |
+| Presets | `saveQueryPreset`, `loadQueryPreset`, `executePreset`, `listPresets`, `deletePreset` |
+| Webhook after query | `queryWithWebhook` |
+| Group by aggregations | `groupByQuery` |
+| Requirements / Notes | `softDelete*` needs `deletedAt` (or custom field), `tenant*` needs `tenantId` (or custom field), `groupByQuery` depends on Prisma `groupBy`, `queryWithWebhook` uses `fetch` (Node 18+) |
+
+### Advanced Feature Examples
+
+#### Query Caching
+```ts
+import { cachedQueryBuilder, generateCacheKey } from "@websyro/prismapilot/advanced";
+
+const options = { model: prisma.user, page: 1, limit: 20 };
+const key = generateCacheKey(options);
+
+const result = await cachedQueryBuilder(options, { key, ttl: 300000 });
+```
+
+#### Performance Monitoring
+```ts
+import { monitoredQueryBuilder, onQueryMetrics } from "@websyro/prismapilot/advanced";
+
+onQueryMetrics(({ queryTime, isSlow, options }) => {
+  if (isSlow) console.warn("Slow query", { queryTime, options });
+});
+
+const result = await monitoredQueryBuilder({ model: prisma.order, page: 1 });
+```
+
+#### Soft Delete
+```ts
+import { softDeleteQueryBuilder } from "@websyro/prismapilot/advanced";
+
+const result = await softDeleteQueryBuilder(
+  { model: prisma.user, page: 1 },
+  { deletedAtField: "deletedAt" }
+);
+```
+
+#### Multi-tenant
+```ts
+import { tenantQueryBuilder } from "@websyro/prismapilot/advanced";
+
+const result = await tenantQueryBuilder(
+  { model: prisma.event, page: 1 },
+  { tenantId: "tenant_123" }
+);
+```
+
+#### Batch Queries
+```ts
+import { batchQueryBuilder } from "@websyro/prismapilot/advanced";
+
+const result = await batchQueryBuilder([
+  { name: "users", options: { model: prisma.user, page: 1 } },
+  { name: "orders", options: { model: prisma.order, page: 1 } },
+]);
+```
+
+#### Export
+```ts
+import { queryAndExportCSV, queryAndExportJSON } from "@websyro/prismapilot/advanced";
+
+const csv = await queryAndExportCSV({ model: prisma.order, page: 1 }, 10000);
+const json = await queryAndExportJSON({ model: prisma.order, page: 1 }, 10000, true);
+```
+
+#### Presets
+```ts
+import { saveQueryPreset, executePreset } from "@websyro/prismapilot/advanced";
+
+saveQueryPreset("active-users", { model: prisma.user, filters: { isActive: true } });
+const result = await executePreset("active-users", { page: 1 });
+```
+
+#### Webhook
+```ts
+import { queryWithWebhook } from "@websyro/prismapilot/advanced";
+
+const result = await queryWithWebhook(
+  { model: prisma.order, page: 1 },
+  "https://example.com/webhook",
+  { includeQuery: true }
+);
+```
+
+#### Group By
+```ts
+import { groupByQuery } from "@websyro/prismapilot/advanced";
+
+const result = await groupByQuery({
+  model: prisma.order,
+  groupBy: ["status"],
+  aggregations: { _count: true, _sum: { amount: true } },
+});
 ```
 
 ### Validation (Optional)
