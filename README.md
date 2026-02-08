@@ -5,7 +5,7 @@ A generic, schema-agnostic query builder for Prisma. It provides pagination, sea
 ## Features
 - Works with any Prisma model
 - Offset and cursor pagination
-- Search helpers (case-insensitive contains)
+- Search helpers (case-insensitive contains; depends on provider support)
 - Filter helpers (exact, ranges, arrays, booleans)
 - Optional Zod validation schemas
 - Advanced utilities in a separate module
@@ -21,12 +21,58 @@ A generic, schema-agnostic query builder for Prisma. It provides pagination, sea
 | Validation | `paginationSchema`, `cursorPaginationSchema`, `sortSchema`, `searchSchema`, `dateRangeSchema`, `numberRangeSchema`, `genericQuerySchema` | Validate query params for REST/GraphQL |
 | Advanced module | `cachedQueryBuilder`, `monitoredQueryBuilder`, `softDeleteQueryBuilder`, `tenantQueryBuilder`, `batchQueryBuilder`, `queryWithWebhook`, `groupByQuery` | Caching, performance monitoring, soft deletes, multi-tenant apps, exports, webhook workflows |
 
+## Schema Requirements Guide (Single Table)
+This table maps PrismaPilot features to the minimum fields required in a model. If a feature says "Optional", you can skip it unless you plan to use that feature.
+
+| Feature | Required Fields | Type | Optional Notes |
+| --- | --- | --- | --- |
+| Core listing | `id` | `String/Int` (unique) | Any unique id works. |
+| Default sorting | `createdAt` | `DateTime` | Default sort uses this if `sortBy` is not provided. |
+| Cursor pagination | `cursorField` (default: `id`) | Unique field | Must be unique and stable. |
+| Search helpers | `searchFields` | `String` fields | Only string fields supported. |
+| Date range filters | `field` | `DateTime` | `from`/`to` values. |
+| Number range filters | `field` | `Int/Float` | `from`/`to` values. |
+| Boolean filters | `field` | `Boolean` | Exact match. |
+| Enum filters | `field` | `Enum` | Exact match. |
+| Relation filters | Relation field | Relation | Supports `some/none/every` shapes. |
+| Soft delete | `deletedAt` | `DateTime?` | Or pass custom field via `deletedAtField`. |
+| Tenant / multi-tenant | `tenantId` | `String?` | Or pass custom field via `tenantField`. |
+| GroupBy | `groupBy` fields | Scalar fields | Must exist on the model. |
+
+Example "all-features" model:
+```prisma
+model Example {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  name      String
+  isActive  Boolean  @default(true)
+  status    String
+  amount    Int
+
+  // Advanced features
+  tenantId  String?
+  deletedAt DateTime?
+}
+```
+
+## Schema Validation Checklist (Quick)
+Use this to confirm a model is ready for PrismaPilot features.
+
+- `id` exists and is unique.
+- `createdAt` exists if you rely on default sorting.
+- Cursor pagination: `cursorField` is unique and stable.
+- Search: all `searchFields` are `String`.
+- Range filters: `DateTime` for date ranges, `Int/Float` for number ranges.
+- Soft delete: `deletedAt` exists (or pass custom `deletedAtField`).
+- Tenant: `tenantId` exists (or pass custom `tenantField`).
+- Relation filters: relations are properly defined in Prisma schema.
+
 ## Assumptions / Notes
 - `queryBuilder` default sort uses `createdAt` unless you pass a different `sortBy`.
 - `cursorQueryBuilder` default sort uses `cursorField` (default: `id`) unless you pass a different `sortBy`.
 - `cursorQueryBuilder` uses a `cursorField` (default: `id`). The cursor value must match this field and that field must be unique in your Prisma schema.
 - If you sort by a different field, Prisma still needs a stable order. PrismaPilot automatically adds `cursorField` as a secondary `orderBy` for cursor pagination.
-- Search helpers use `mode: "insensitive"`, which depends on your Prisma provider support.
+- Search helpers use `mode: "insensitive"`, which depends on your Prisma provider support (Postgres/MySQL support this; SQLite is limited).
 
 ## Installation
 
@@ -448,6 +494,7 @@ const result = await queryWithWebhook(
   { includeQuery: true }
 );
 ```
+Note: webhook failures are logged via `console.error` but do not throw by default.
 
 #### Group By
 ```ts

@@ -111,7 +111,7 @@ describe("Advanced Features", () => {
   });
 
   it("buildSoftDeleteFilter should respect options", () => {
-    expect(buildSoftDeleteFilter()).toEqual({ deletedAt: null });
+    expect(buildSoftDeleteFilter()).toEqual({ deletedAt: { equals: null } });
     expect(buildSoftDeleteFilter({ includeTrashed: true })).toEqual({});
     expect(buildSoftDeleteFilter({ trashedOnly: true })).toEqual({ deletedAt: { not: null } });
   });
@@ -125,7 +125,7 @@ describe("Advanced Features", () => {
     await softDeleteQueryBuilder({ model: { name: "User" }, filters: { status: "ACTIVE" } });
     const args = queryBuilderMock.mock.calls[0][0];
     expect(args.filters).toHaveProperty("status", "ACTIVE");
-    expect(args.filters).toHaveProperty("deletedAt", null);
+    expect(args.filters).toHaveProperty("deletedAt", { equals: null });
   });
 
   it("buildTenantFilter should use tenant field", () => {
