@@ -38,9 +38,11 @@ export function getPagination({
  */
 export function getCursorPagination({
   cursor,
+  cursorField = "id",
   limit = DEFAULT_LIMIT,
 }: {
   cursor?: string;
+  cursorField?: string;
   limit?: number;
 }) {
   const take = Math.min(Math.max(1, limit), MAX_LIMIT);
@@ -50,7 +52,7 @@ export function getCursorPagination({
     ...(cursor && {
       skip: 1, // Skip the cursor item
       cursor: {
-        id: cursor,
+        [cursorField]: cursor,
       },
     }),
   };
@@ -73,9 +75,10 @@ export function calculateTotalPages(total: number, limit: number): number {
  * @param limit - Original limit requested
  * @returns Processed data with pagination metadata
  */
-export function processCursorResults<T extends { id: string }>(
+export function processCursorResults<T extends Record<string, any>>(
   results: T[],
   limit: number,
+  cursorField = "id",
 ): {
   data: T[];
   hasMore: boolean;
@@ -88,7 +91,8 @@ export function processCursorResults<T extends { id: string }>(
   if (hasMore && data && data.length > 0) {
     const lastItem = data[data.length - 1];
     if (lastItem) {
-      nextCursor = lastItem.id;
+      const cursorValue = lastItem[cursorField];
+      nextCursor = cursorValue !== undefined ? String(cursorValue) : null;
     }
   }
 

@@ -46,6 +46,7 @@ export type {
   SortParams,
   SearchParams,
   FilterParams,
+  RelationFilterParams,
   DateRangeFilter,
   NumberRangeFilter,
   QueryBuilderResponse,

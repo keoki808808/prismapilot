@@ -23,7 +23,9 @@ A generic, schema-agnostic query builder for Prisma. It provides pagination, sea
 
 ## Assumptions / Notes
 - `queryBuilder` default sort uses `createdAt` unless you pass a different `sortBy`.
-- `cursorQueryBuilder` expects an `id` field for cursor pagination.
+- `cursorQueryBuilder` default sort uses `cursorField` (default: `id`) unless you pass a different `sortBy`.
+- `cursorQueryBuilder` uses a `cursorField` (default: `id`). The cursor value must match this field and that field must be unique in your Prisma schema.
+- If you sort by a different field, Prisma still needs a stable order. PrismaPilot automatically adds `cursorField` as a secondary `orderBy` for cursor pagination.
 - Search helpers use `mode: "insensitive"`, which depends on your Prisma provider support.
 
 ## Installation
@@ -84,6 +86,7 @@ type QueryBuilderArgs = {
   search?: string;
   searchFields?: string[];
   filters?: Record<string, any>;
+  relationFilters?: Record<string, any>;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   include?: any;
@@ -113,8 +116,10 @@ type CursorQueryBuilderArgs = {
   search?: string;
   searchFields?: string[];
   filters?: Record<string, any>;
+  relationFilters?: Record<string, any>;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
+  cursorField?: string;
   include?: any;
   select?: any;
 };
@@ -124,6 +129,8 @@ type CursorQueryBuilderArgs = {
 - Pagination: `getPagination`, `getCursorPagination`, `calculateTotalPages`, `processCursorResults`
 - Search: `buildSearchQuery`, `buildNestedSearchQuery`, `buildExactSearch`, `buildPrefixSearch`
 - Filters: `buildFilters`, `buildDateRangeFilter`, `buildNumberRangeFilter`, `buildRelationFilters`, `buildNotFilters`, `combineFilters`, `combineFiltersWithOr`
+  `combineFilters` uses AND logic, `combineFiltersWithOr` uses OR logic.
+- `relationFilters` can be passed to builders for relation where clauses.
 
 ### Filter Types
 Below are the supported filter styles for the `filters` option. You can mix these in the same object.
@@ -214,6 +221,7 @@ const result = await queryBuilder({
   search: "search term",        // Optional: Search string
   searchFields: ["field1"],     // Optional: Fields to search in
   filters: {},                  // Optional: Filter conditions
+  relationFilters: {},          // Optional: Relation filter conditions
   sortBy: "createdAt",          // Optional: Field to sort by
   sortOrder: "desc",            // Optional: asc or desc
   include: {},                  // Optional: Prisma include
@@ -239,6 +247,8 @@ const result = await cursorQueryBuilder({
   model: prisma.event,
   cursor: "last-item-id",       // Optional: Cursor for next page
   limit: 10,
+  cursorField: "id",            // Optional: Cursor field (must be unique)
+  relationFilters: {},          // Optional: Relation filter conditions
   // ... same options as queryBuilder (except 'page')
 });
 ```
@@ -259,6 +269,7 @@ Returns:
 const count = await countQuery({
   model: prisma.order,
   filters: { status: "PAID" },
+  relationFilters: { user: { isActive: true } },
   search: "search term",
   searchFields: ["receipt"],
 });
@@ -269,6 +280,7 @@ const count = await countQuery({
 const stats = await aggregateQuery({
   model: prisma.order,
   filters: { status: "PAID" },
+  relationFilters: { user: { isActive: true } },
   aggregations: {
     _sum: { amount: true },
     _avg: { amount: true },
@@ -291,6 +303,26 @@ const users = await queryBuilder({
     isActive: true,
     createdAt: { from: new Date("2025-01-01"), to: new Date("2025-12-31") },
   },
+  relationFilters: {
+    organization: { isActive: true },
+  },
+});
+```
+
+### Relation Filters (some/none/every)
+```ts
+const users = await queryBuilder({
+  model: prisma.user,
+  page: 1,
+  limit: 20,
+  relationFilters: {
+    posts: {
+      some: { status: "PUBLISHED" },
+    },
+    sessions: {
+      none: { isActive: true },
+    },
+  },
 });
 ```
 
@@ -304,6 +336,7 @@ const page = await cursorQueryBuilder({
   limit: 20,
   sortBy: "createdAt",
   sortOrder: "desc",
+  cursorField: "id",
 });
 ```
 
@@ -333,6 +366,7 @@ Import from `@websyro/prismapilot/advanced`. These utilities are generic, but so
 | Webhook after query | `queryWithWebhook` |
 | Group by aggregations | `groupByQuery` |
 | Requirements / Notes | `softDelete*` needs `deletedAt` (or custom field), `tenant*` needs `tenantId` (or custom field), `groupByQuery` depends on Prisma `groupBy`, `queryWithWebhook` uses `fetch` (Node 18+) |
+| Export Notes | `toCSV` stringifies nested objects/arrays using JSON before CSV escaping |
 
 ### Advanced Feature Examples
 
@@ -393,6 +427,7 @@ import { queryAndExportCSV, queryAndExportJSON } from "@websyro/prismapilot/adva
 
 const csv = await queryAndExportCSV({ model: prisma.order, page: 1 }, 10000);
 const json = await queryAndExportJSON({ model: prisma.order, page: 1 }, 10000, true);
+// Note: nested objects/arrays are JSON-stringified for CSV output
 ```
 
 #### Presets

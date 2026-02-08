@@ -40,8 +40,10 @@ describe("Query Builder - Additional Coverage", () => {
       { createdAt: "desc" },
       { email: "asc" },
     ]);
-    expect(args.where).toHaveProperty("OR");
-    expect(args.where).toHaveProperty("status", "ACTIVE");
+    expect(args.where).toHaveProperty("AND");
+    expect(Array.isArray(args.where.AND)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.OR)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.status === "ACTIVE")).toBe(true);
   });
 
   it("countQuery should pass combined where to model.count", async () => {
@@ -52,12 +54,20 @@ describe("Query Builder - Additional Coverage", () => {
       search: "john",
       searchFields: ["email"],
       filters: { isActive: true },
+      relationFilters: { organization: { isActive: true } },
     });
 
     expect(result).toBe(12);
     const args = mockModel.count.mock.calls[0][0];
-    expect(args.where).toHaveProperty("OR");
-    expect(args.where).toHaveProperty("isActive", true);
+    expect(args.where).toHaveProperty("AND");
+    expect(Array.isArray(args.where.AND)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.OR)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.isActive === true)).toBe(true);
+    expect(
+      args.where.AND.some(
+        (f: any) => f.organization && f.organization.isActive === true,
+      ),
+    ).toBe(true);
   });
 
   it("aggregateQuery should pass aggregations and where", async () => {
@@ -69,6 +79,7 @@ describe("Query Builder - Additional Coverage", () => {
     const result = await aggregateQuery({
       model: mockModel,
       filters: { status: "PAID" },
+      relationFilters: { user: { isActive: true } },
       aggregations: {
         _count: true,
         _sum: { amount: true },
@@ -77,7 +88,14 @@ describe("Query Builder - Additional Coverage", () => {
 
     expect(result).toEqual({ _count: 1, _sum: { amount: 100 } });
     const args = mockModel.aggregate.mock.calls[0][0];
-    expect(args.where).toHaveProperty("status", "PAID");
+    expect(args.where).toHaveProperty("AND");
+    expect(Array.isArray(args.where.AND)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.status === "PAID")).toBe(true);
+    expect(
+      args.where.AND.some(
+        (f: any) => f.user && f.user.isActive === true,
+      ),
+    ).toBe(true);
     expect(args._sum).toEqual({ amount: true });
   });
 });

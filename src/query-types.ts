@@ -11,6 +11,7 @@ export type PaginationParams = {
 export type CursorPaginationParams = {
   cursor?: string;
   limit?: number;
+  cursorField?: string;
 };
 
 export type SortParams = {
@@ -24,6 +25,7 @@ export type SearchParams = {
 };
 
 export type FilterParams = Record<string, any>;
+export type RelationFilterParams = Record<string, any>;
 
 export type DateRangeFilter = {
   from?: Date | string;

@@ -33,8 +33,10 @@ describe("Query Builder Integration", () => {
     expect(mockModel.count).toHaveBeenCalledTimes(1);
 
     const args = mockModel.findMany.mock.calls[0][0];
-    expect(args.where).toHaveProperty("OR");
-    expect(args.where).toHaveProperty("status", "ACTIVE");
+    expect(args.where).toHaveProperty("AND");
+    expect(Array.isArray(args.where.AND)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.OR)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.status === "ACTIVE")).toBe(true);
     expect(args.orderBy).toEqual({ createdAt: "desc" });
     expect(args.include).toEqual({ profile: true });
     expect(args.select).toEqual({ id: true });
@@ -56,6 +58,7 @@ describe("Query Builder Integration", () => {
       search: "live",
       searchFields: ["title"],
       filters: { status: "LIVE" },
+      relationFilters: { organization: { isActive: true } },
       sortBy: "createdAt",
       sortOrder: "desc",
       include: { speakers: true },
@@ -65,9 +68,19 @@ describe("Query Builder Integration", () => {
     expect(args.take).toBe(3); // limit + 1
     expect(args.skip).toBe(1);
     expect(args.cursor).toEqual({ id: "cursor-1" });
-    expect(args.orderBy).toEqual({ createdAt: "desc" });
-    expect(args.where).toHaveProperty("OR");
-    expect(args.where).toHaveProperty("status", "LIVE");
+    expect(args.orderBy).toEqual([
+      { createdAt: "desc" },
+      { id: "desc" },
+    ]);
+    expect(args.where).toHaveProperty("AND");
+    expect(Array.isArray(args.where.AND)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.OR)).toBe(true);
+    expect(args.where.AND.some((f: any) => f.status === "LIVE")).toBe(true);
+    expect(
+      args.where.AND.some(
+        (f: any) => f.organization && f.organization.isActive === true,
+      ),
+    ).toBe(true);
 
     expect(result.meta.hasMore).toBe(true);
     expect(result.meta.nextCursor).toBe("b");

@@ -293,18 +293,28 @@ export function toCSV(data: any[]): string {
   const headers = Object.keys(data[0]);
   const csvHeaders = headers.join(",");
 
+  const normalizeValue = (value: any) => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") {
+      return String(value);
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  };
+
+  const escapeCsv = (raw: string) => {
+    const needsQuotes = raw.includes(",") || raw.includes('"') || raw.includes("\n") || raw.includes("\r");
+    const escaped = raw.replace(/"/g, '""');
+    return needsQuotes ? `"${escaped}"` : escaped;
+  };
+
   const csvRows = data.map((row) =>
     headers
-      .map((header) => {
-        const value = row[header];
-        if (
-          typeof value === "string" &&
-          (value.includes(",") || value.includes('"'))
-        ) {
-          return `"${value.replace(/"/g, '""')}"`;
-        }
-        return value;
-      })
+      .map((header) => escapeCsv(normalizeValue(row[header])))
       .join(","),
   );
 

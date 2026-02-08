@@ -172,6 +172,14 @@ describe("Advanced Features", () => {
     expect(json).toBe("[{\"a\":1}]");
   });
 
+  it("toCSV should stringify nested objects and arrays", () => {
+    const csv = toCSV([
+      { name: "Alice", meta: { role: "ADMIN" }, tags: ["a", "b"] },
+    ]);
+    expect(csv).toContain("\"{\"\"role\"\":\"\"ADMIN\"\"}\"");
+    expect(csv).toContain("\"[\"\"a\"\",\"\"b\"\"]\"");
+  });
+
   it("queryAndExportCSV/JSON should return exported strings", async () => {
     queryBuilderMock.mockResolvedValue({
       data: [{ id: 1, name: "Test" }],

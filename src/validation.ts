@@ -12,7 +12,7 @@ export const paginationSchema = z.object({
 });
 
 export const cursorPaginationSchema = z.object({
-  cursor: z.string().uuid().optional(),
+  cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(100).default(10),
 });
 

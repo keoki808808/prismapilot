@@ -178,9 +178,19 @@ export function buildNotFilters(notFilters: Record<string, any>): any {
  * @returns Combined Prisma where clause
  */
 export function combineFilters(...filterObjects: Record<string, any>[]): Record<string, any> {
-  return filterObjects.reduce((combined, current) => {
-    return { ...combined, ...current };
-  }, {});
+  const validFilters = filterObjects.filter(
+    (filter) => filter && Object.keys(filter).length > 0
+  );
+
+  if (validFilters.length === 0) {
+    return {};
+  }
+
+  if (validFilters.length === 1) {
+    return validFilters[0] ?? {};
+  }
+
+  return { AND: validFilters };
 }
 
 /**

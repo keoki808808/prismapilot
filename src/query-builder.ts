@@ -9,7 +9,7 @@ import {
   processCursorResults,
 } from "./pagination";
 import { buildSearchQuery } from "./search";
-import { buildFilters, combineFilters } from "./filters";
+import { buildFilters, buildRelationFilters, combineFilters } from "./filters";
 import {
   QueryBuilderResponse,
   CursorQueryBuilderResponse,
@@ -22,6 +22,7 @@ type QueryBuilderArgs = {
   search?: string;
   searchFields?: string[];
   filters?: Record<string, any>;
+  relationFilters?: Record<string, any>;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
   include?: any;
@@ -30,6 +31,7 @@ type QueryBuilderArgs = {
 
 type CursorQueryBuilderArgs = Omit<QueryBuilderArgs, "page"> & {
   cursor?: string;
+  cursorField?: string;
 };
 
 /**
@@ -43,6 +45,7 @@ export async function queryBuilder<T>({
   search,
   searchFields = [],
   filters = {},
+  relationFilters = {},
   sortBy = "createdAt",
   sortOrder = "desc",
   include,
@@ -56,9 +59,10 @@ export async function queryBuilder<T>({
 
   // Build filter query
   const filterQuery = buildFilters(filters);
+  const relationQuery = buildRelationFilters(relationFilters);
 
   // Combine all where conditions
-  const where = combineFilters(searchQuery || {}, filterQuery);
+  const where = combineFilters(searchQuery || {}, filterQuery, relationQuery);
 
   // Execute query and count in parallel
   const [data, total] = await Promise.all([
@@ -89,35 +93,46 @@ export async function queryBuilder<T>({
  * Better for infinite scroll and large datasets
  * @returns Data with cursor pagination metadata
  */
-export async function cursorQueryBuilder<T extends { id: string }>({
+export async function cursorQueryBuilder<T extends Record<string, any>>({
   model,
   cursor,
   limit = 10,
   search,
   searchFields = [],
   filters = {},
-  sortBy = "createdAt",
+  relationFilters = {},
+  sortBy,
   sortOrder = "desc",
   include,
   select,
+  cursorField = "id",
 }: CursorQueryBuilderArgs): Promise<CursorQueryBuilderResponse<T>> {
+  const effectiveSortBy = sortBy || cursorField;
+
   // Get cursor pagination parameters
-  const cursorPagination = getCursorPagination({ cursor, limit });
+  const cursorPagination = getCursorPagination({ cursor, limit, cursorField });
 
   // Build search query
   const searchQuery = buildSearchQuery(search, searchFields);
 
   // Build filter query
   const filterQuery = buildFilters(filters);
+  const relationQuery = buildRelationFilters(relationFilters);
 
   // Combine all where conditions
-  const where = combineFilters(searchQuery || {}, filterQuery);
+  const where = combineFilters(searchQuery || {}, filterQuery, relationQuery);
 
   // Execute query
   const results = await model.findMany({
     where,
     ...cursorPagination,
-    orderBy: { [sortBy]: sortOrder },
+    orderBy:
+      effectiveSortBy === cursorField
+        ? { [effectiveSortBy]: sortOrder }
+        : [
+            { [effectiveSortBy]: sortOrder },
+            { [cursorField]: sortOrder },
+          ],
     ...(include && { include }),
     ...(select && { select }),
   });
@@ -126,6 +141,7 @@ export async function cursorQueryBuilder<T extends { id: string }>({
   const { data, hasMore, nextCursor } = processCursorResults(
     results,
     limit,
+    cursorField,
   ) as {
     data: T[];
     hasMore: boolean;
@@ -153,6 +169,7 @@ export async function advancedQueryBuilder<T>({
   search,
   searchFields = [],
   filters = {},
+  relationFilters = {},
   sortFields = [{ field: "createdAt", order: "desc" as const }],
   include,
   select,
@@ -167,9 +184,10 @@ export async function advancedQueryBuilder<T>({
 
   // Build filter query
   const filterQuery = buildFilters(filters);
+  const relationQuery = buildRelationFilters(relationFilters);
 
   // Combine all where conditions
-  const where = combineFilters(searchQuery || {}, filterQuery);
+  const where = combineFilters(searchQuery || {}, filterQuery, relationQuery);
 
   // Build orderBy for multiple fields
   const orderBy = sortFields.map((sort) => ({
@@ -208,6 +226,7 @@ export async function advancedQueryBuilder<T>({
 export async function countQuery({
   model,
   filters = {},
+  relationFilters = {},
   search,
   searchFields = [],
 }: Omit<
@@ -219,9 +238,10 @@ export async function countQuery({
 
   // Build filter query
   const filterQuery = buildFilters(filters);
+  const relationQuery = buildRelationFilters(relationFilters);
 
   // Combine all where conditions
-  const where = combineFilters(searchQuery || {}, filterQuery);
+  const where = combineFilters(searchQuery || {}, filterQuery, relationQuery);
 
   return model.count({ where });
 }
@@ -233,6 +253,7 @@ export async function countQuery({
 export async function aggregateQuery({
   model,
   filters = {},
+  relationFilters = {},
   search,
   searchFields = [],
   aggregations,
@@ -253,9 +274,10 @@ export async function aggregateQuery({
 
   // Build filter query
   const filterQuery = buildFilters(filters);
+  const relationQuery = buildRelationFilters(relationFilters);
 
   // Combine all where conditions
-  const where = combineFilters(searchQuery || {}, filterQuery);
+  const where = combineFilters(searchQuery || {}, filterQuery, relationQuery);
 
   return model.aggregate({
     where,
